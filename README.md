@@ -4,6 +4,8 @@ mqtt interfacing, light and audio control and simple presence detection.
 
 It exposes its parameters and backend apis via a webserver under the url `/api`.
 
+Frontend can be found at https://github.com/mikonse/home-awareness-ui.
+
 # Development
 Simply `pip install -r requirements.txt`
 
