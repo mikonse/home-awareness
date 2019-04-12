@@ -1,7 +1,10 @@
-import paho.mqtt.client as mqtt
+import json
 
+import paho.mqtt.client as mqtt
+from modular_conf.fields import StringField, IntField
+
+from bus.message import Message
 from config import config
-from config.fields import StringField, IntField
 from log import LOG
 
 
@@ -17,9 +20,9 @@ CONFIG_FIELDS = [
 _client = None
 
 
-def callback_wrapper(f):
+def callback_wrapper(topic, f):
     def func(client, userdata, message):
-        f(message.topic, message.payload)
+        f(Message(topic, json.loads(message)))
 
     return func
 
@@ -37,7 +40,7 @@ class Client:
         self.client.on_disconnect = self.on_disconnect
 
     def on_connect(self, client, userdata, flags, rc):
-        LOG.debug(f'MQTT client connected')
+        LOG.info(f'MQTT client ({client}) connected')
 
     def on_message(self, client, userdata, msg):
         pass
@@ -54,6 +57,9 @@ class Client:
     def connect(self):
         self.client.connect(self.host, self.port, keepalive=60)
 
+    def publish(self, topic, payload, qos=0, retain=False):
+        self.client.publish(topic, payload, qos, retain)
+
     def subscribe(self, topic, callback, qos=0):
         """
         Subscribe to a certain topic. Callback will be called with messages received in that topic.
@@ -63,10 +69,13 @@ class Client:
             qos (int): quality of service flag for mqtt
         """
         self.client.subscribe(topic, qos)
-        self.client.message_callback_add(topic, callback_wrapper(callback))
+        self.client.message_callback_add(topic, callback_wrapper(topic, callback))
 
 
 def main():
+    config.register_module(MODULE_NAME, CONFIG_FIELDS)
+
     global _client
-    _client = Client()
+    _client = Client(clientid='home-awareness')
     # _client.connect()
+    # _client.publish('test/test', json.dumps({'testdata': 123}))

@@ -4,10 +4,11 @@ import subprocess
 from threading import Thread
 
 from time import sleep, time
+from modular_conf.fields import TupleListField
 
 from config import config
-from config.fields import TupleListField
-from bus import emit, Message
+from bus import emit
+from bus.message import Message
 from log import LOG
 
 MODULE_NAME = 'wifi'
@@ -96,6 +97,7 @@ def watch(exit_timeout=600, sleep_amount=30):
 
 
 def main():
+    config.register_module(MODULE_NAME, CONFIG_FIELDS)
     watcher = Thread(target=watch, kwargs={'exit_timeout': 600, 'sleep_amount': 30})
     watcher.start()
 

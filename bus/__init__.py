@@ -1,5 +1,6 @@
-import json
 from collections import defaultdict, OrderedDict
+
+from bus.message import Message
 from log import LOG
 
 
@@ -207,37 +208,17 @@ class EventEmitter(object):
         return list(self._events[event].keys())
 
 
-EventBus = EventEmitter()
+EventBusEmitter = EventEmitter()
 
 
-class Message(object):
-    def __init__(self, type, data=None):
-        self.type = type
-        self.data = data
-
-    def serialize(self):
-        return json.dumps({
-            'type': self.type,
-            'data': self.data
-        })
-
-    def serialize_data(self):
-        return json.dumps(self.data)
-
-    @staticmethod
-    def deserialize(value):
-        obj = json.loads(value)
-        return Message(obj.get('type'), obj.get('data'))
-
-
-@EventBus.on_all()
+@EventBusEmitter.on_all()
 def log_bus_message(message, *args, **kwargs):
     if isinstance(message, Message):
         LOG.debug(f'Bus - {message.type}: {message.data or "no data"}')
 
 
 def emit(message):
-    EventBus.emit(message.type, message)
+    EventBusEmitter.emit(message.type, message)
 
 
 def main():

@@ -1,8 +1,8 @@
 import socketio
 
-from bus import EventBus
+from bus import EventBusEmitter
 from config import config
-from config.fields import StringField, IntField
+from modular_conf.fields import StringField, IntField
 
 MODULE_NAME = 'audio'
 CONFIG_FIELDS = [
@@ -48,8 +48,8 @@ class VolumioControl(PlaybackControl):
 
         self.state = dict()
 
-        EventBus.on('tracking.action.shutdown', self.pause)
-        # EventBus.on('tracking.action.initialize', self.resume)
+        EventBusEmitter.on('tracking.action.shutdown', self.pause)
+        # EventBusEmitter.on('tracking.action.initialize', self.resume)
 
     def pause(self, *args):
         self.sio.emit('pause')
@@ -82,6 +82,8 @@ def get_player_state():
 
 
 def main():
+    config.register_module(MODULE_NAME, CONFIG_FIELDS)
+
     global control
     control = VolumioControl(config.get(MODULE_NAME, 'volumio_host'), config.get(MODULE_NAME, 'volumio_port'))
 

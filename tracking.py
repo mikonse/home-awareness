@@ -1,7 +1,9 @@
 from time import time
+from modular_conf.fields import ChoiceField
 
-from bus import EventBus, emit, Message
-from config.fields import ChoiceField
+from bus import EventBusEmitter, emit
+from bus.message import Message
+from config import config
 
 from log import LOG
 
@@ -39,8 +41,9 @@ def get_current_users():
 
 
 def main():
-    EventBus.on('tracking.event.user_enter', on_user_enter)
-    EventBus.on('tracking.event.user_exit', on_user_exit)
+    config.register_module(MODULE_NAME, CONFIG_FIELDS)
+    EventBusEmitter.on('tracking.event.user_enter', on_user_enter)
+    EventBusEmitter.on('tracking.event.user_exit', on_user_exit)
 
 
 if __name__ == '__main__':
