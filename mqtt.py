@@ -1,9 +1,10 @@
+import asyncio
 import json
 
-import paho.mqtt.client as mqtt
+import aiomqtt
 from modular_conf.fields import StringField, IntField
 
-from bus.message import Message
+from bus.events import Event
 from config import config
 from log import LOG
 
@@ -22,7 +23,7 @@ _client = None
 
 def callback_wrapper(topic, f):
     def func(client, userdata, message):
-        f(Message(topic, json.loads(message)))
+        f(Event(json.loads(message)))
 
     return func
 
@@ -32,7 +33,7 @@ class Client:
         self.host = host or config.get(MODULE_NAME, 'mqtt_host')
         self.port = port or config.get(MODULE_NAME, 'mqtt_port')
 
-        self.client = mqtt.Client(clientid)
+        self.client = aiomqtt.Client(clientid)
         self.client.on_message = self.on_message
         self.client.on_connect = self.on_connect
         self.client.on_publish = self.on_publish
@@ -54,13 +55,14 @@ class Client:
     def on_disconnect(self, client, userdata, rc):
         pass
 
-    def connect(self):
-        self.client.connect(self.host, self.port, keepalive=60)
+    async def connect(self):
+        await self.client.connect(self.host, self.port, keepalive=60)
 
-    def publish(self, topic, payload, qos=0, retain=False):
-        self.client.publish(topic, payload, qos, retain)
+    async def publish(self, topic, payload, qos=0, retain=False):
+        message_info = self.client.publish(topic, payload, qos, retain)
+        await message_info.wait_for_publish()
 
-    def subscribe(self, topic, callback, qos=0):
+    async def subscribe(self, topic, callback, qos=0):
         """
         Subscribe to a certain topic. Callback will be called with messages received in that topic.
         Args:
@@ -68,14 +70,16 @@ class Client:
             callback (function): callback
             qos (int): quality of service flag for mqtt
         """
-        self.client.subscribe(topic, qos)
-        self.client.message_callback_add(topic, callback_wrapper(topic, callback))
+        await self.client.subscribe(topic, qos)
+        await self.client.message_callback_add(topic, callback_wrapper(topic, callback))
 
 
-def main():
+async def main(shutdown_signal: asyncio.Event):
     config.register_module(MODULE_NAME, CONFIG_FIELDS)
 
     global _client
     _client = Client(clientid='home-awareness')
+
+    await shutdown_signal.wait()
     # _client.connect()
     # _client.publish('test/test', json.dumps({'testdata': 123}))

@@ -1,8 +1,12 @@
+import asyncio
 from time import time
+from typing import List
+
 from modular_conf.fields import ChoiceField
 
-from bus import EventBusEmitter, emit
-from bus.message import Message
+from bus import e_bus
+from bus.events import Event
+from common.events import TrackingEvent
 from config import config
 
 from log import LOG
@@ -14,37 +18,38 @@ CONFIG_FIELDS = [
 ]
 
 
-_tracked_users = dict()
+class UserTracker:
+    def __init__(self):
+        self.users = {}
+
+        e_bus.on('tracking.event.user_enter', self.on_user_enter)
+        e_bus.on('tracking.event.user_exit', self.on_user_exit)
+
+    async def on_user_enter(self, event: TrackingEvent) -> None:
+        if len(self.users) == 0:
+            LOG.info('First user entered, initializing system')
+            e_bus.emit('tracking.action.initialize', Event())
+
+        self.users[event.user.name] = time()
+
+    async def on_user_exit(self, event: TrackingEvent) -> None:
+        if event.user.name in self.users:
+            del self.users[event.user.name]
+
+        if len(self.users) == 0:
+            LOG.info('Last user let, shutting down system')
+            e_bus.emit('tracking.action.shutdown', Event())
+
+    def get_current_users(self) -> List:
+        return [{'name': user, 'time': since} for user, since in self.users.items()]
 
 
-def on_user_enter(message):
-    global _tracked_users
-    if len(_tracked_users) == 0:
-        LOG.info('First user entered, initializing system')
-        emit(Message('tracking.action.initialize'))
-
-    _tracked_users[message.data.get('user')] = time()
-
-
-def on_user_exit(message):
-    global _tracked_users
-    if message.data.get('user') in _tracked_users:
-        del _tracked_users[message.data.get('user')]
-
-    if len(_tracked_users) == 0:
-        LOG.info('Last user let, shutting down system')
-        emit(Message('tracking.action.shutdown'))
-
-
-def get_current_users():
-    return [{'name': user, 'time': since} for user, since in _tracked_users.items()]
-
-
-def main():
+async def main(shutdown_signal: asyncio.Event):
     config.register_module(MODULE_NAME, CONFIG_FIELDS)
-    EventBusEmitter.on('tracking.event.user_enter', on_user_enter)
-    EventBusEmitter.on('tracking.event.user_exit', on_user_exit)
+    tracker = UserTracker()
+
+    await shutdown_signal.wait()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

@@ -1,8 +1,8 @@
 from threading import Thread
 from time import time, sleep
 
-import bus
-from bus.message import Message
+from bus import e_bus
+from bus.events import Event
 
 
 class Alarm:
@@ -22,7 +22,7 @@ class Alarm:
         }
 
     def __call__(self, *args, **kwargs):
-        bus.emit(Message('alarm.do_stuff', data=self.serialize()))
+        e_bus.emit('alarm.do_stuff', Event(data=self.serialize()))
 
 
 class Watcher(Thread):

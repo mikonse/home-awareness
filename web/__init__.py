@@ -1,40 +1,58 @@
+import asyncio
 from threading import Thread
 
-from flask import request, jsonify
-from flask_api import FlaskAPI, status
-from flask_cors import CORS
+from aiohttp import web
+from aiohttp.abc import Request, StreamResponse
 
 from config import config
 import tracking
 
-app = FlaskAPI(__name__)
-cors = CORS(app, resources={r'/api/*': {'origins': '*'}})
+routes = web.RouteTableDef()
 
 
-@app.route('/api/tracking/')
-def api_tracking_list():
+@routes.get('/api/tracking/')
+async def api_tracking_list():
     return tracking.get_current_users()
 
 
-@app.route('/api/config', methods=['GET', 'POST'])
-def api_config():
-    if request.method == 'POST':
-        try:
-            data = request.get_json()
-        except:
-            return jsonify({'error': True}), status.HTTP_400_BAD_REQUEST
-        config.update(data, full=True)
-        print(config.serialize(full=False))
-        return jsonify(config.serialize_json(full=True)), status.HTTP_200_OK
+@routes.get('/api/config')
+async def api_config(request: Request) -> StreamResponse:
+    try:
+        data = request.json()
+    except:
+        raise web.HTTPBadRequest()
+    config.update(data, full=True)
 
-    # GET
-    return config.serialize_json(full=True)
+    return web.json_response(config.serialize_json(full=True))
 
 
-def main():
-    thread = Thread(target=app.run, kwargs={'host': 'localhost', 'port': 8000, 'debug': True, 'use_reloader': False})
-    thread.start()
+@routes.post('/api/config')
+async def api_config_post(request: Request) -> StreamResponse:
+    return web.json_response(config.serialize_json(full=True))
+
+
+def _serve(loop: asyncio.AbstractEventLoop, shutdown_signal: asyncio.Event, host: str, port: int) -> None:
+    app = web.Application()
+    app.add_routes(routes)
+    runner = web.AppRunner(app)
+    asyncio.set_event_loop(loop)
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(runner.setup())
+    site = web.TCPSite(runner, host, port)
+    loop.run_until_complete(site.start())
+    loop.run_until_complete(shutdown_signal.wait())
+
+
+async def main(shutdown_signal: asyncio.Event):
+    app = web.Application()
+    app.add_routes(routes)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', 8080)
+    await site.start()
+
+    await shutdown_signal.wait()
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
